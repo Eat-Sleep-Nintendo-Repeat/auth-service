@@ -7,6 +7,11 @@ const app = express();
 app.use(cookieParser());
 app.use(bodyParser.json())
 
+app.use((req, res, next) => {
+    res.setHeader("x-esnr-microservice-id", "auth")
+    next();
+})
+
 //database
 require("./database")
 

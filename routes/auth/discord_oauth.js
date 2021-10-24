@@ -97,7 +97,6 @@ route.get("/callback", async (req, res) => {
             informations: { name: user_data_response.user.username, discriminator: user_data_response.user.discriminator, avatar: user_data_response.user.avatar },
             "oauth.access_token": exchange_response.data.access_token,
             "oauth.refresh_token": exchange_response.data.refresh_token,
-            "oauth.refresh_token": exchange_response.data.refresh_token,
             "oauth.scopes": user_data_response.scopes,
             "oauth.expire_date": new Date(user_data_response.expires),
             "oauth.redirect": `https://${req.headers.host}${req.headers.production_mode ? ":5670" : ""}/api/auth/discord/callback`,
