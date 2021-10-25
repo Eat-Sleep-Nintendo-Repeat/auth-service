@@ -10,7 +10,7 @@ const e = require("express");
 const route = express.Router();
 
 route.get("/", async (req, res) => {
-    if (!req.query.redirect || req.query.redirect.toLowerCase().startsWith("http") == false) return res.sendStatus(400)
+    if (!req.query.redirect || req.query.redirect.toLowerCase().startsWith("http") == false) req.query.redirect = "https://eat-sleep-nintendo-repeat.eu/"
 
     //generate authentication state token
     let state_token = nanoid.nanoid(64)
