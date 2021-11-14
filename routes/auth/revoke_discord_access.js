@@ -15,6 +15,12 @@ route.post("/", async (req, res) => {
     var memberdb = await MEMBER.findOne({"oauth.cookies.refresh_token": refresh_token});
     if (!memberdb) return res.status(401).send({error: "invalid refresh_token"})
 
+    //decrypt token
+    const {createDecipheriv} = require('crypto');
+    const decipher_refresh = createDecipheriv('aes256', config.eycryption_key, memberdb.oauth.e_iv);
+    memberdb.oauth.refresh_token = decipher_refresh.update(memberdb.oauth.e_refresh_token, "hex", "utf-8") + decipher_refresh.final("utf-8")
+
+
     //revoke tokens
     var formData = new url.URLSearchParams({
         client_id: config.discord_api.client_id,

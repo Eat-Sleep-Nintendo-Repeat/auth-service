@@ -92,11 +92,18 @@ route.get("/callback", async (req, res) => {
             memberdb.oauth.cookies.shift();
           } //if there are more then 5 cookies registered, remove the oldest one from db
 
+        //encrypt discord tokens
+        const {createCipheriv, randomBytes} = require('crypto');
+        const iv = randomBytes(16);
+        const cipher_access = createCipheriv("aes256", config.eycryption_key, iv)
+        const cipher_refresh = createCipheriv("aes256", config.eycryption_key, iv)
+
         //update database
         await MEMBER.findOneAndUpdate({id: user_data_response.user.id}, {
             informations: { name: user_data_response.user.username, discriminator: user_data_response.user.discriminator, avatar: user_data_response.user.avatar },
-            "oauth.access_token": exchange_response.data.access_token,
-            "oauth.refresh_token": exchange_response.data.refresh_token,
+            "oauth.e_access_token": cipher_access.update(exchange_response.data.access_token, "utf-8", "hex") + cipher_access.final("hex"),
+            "oauth.e_refresh_token": cipher_refresh.update(exchange_response.data.refresh_token, "utf-8", "hex") + cipher_refresh.final("hex"),
+            "oauth.e_iv": iv,
             "oauth.scopes": user_data_response.scopes,
             "oauth.expire_date": new Date(user_data_response.expires),
             "oauth.redirect": `https://${req.headers.host}${req.headers.production_mode ? ":5670" : ""}/api/auth/discord/callback`,

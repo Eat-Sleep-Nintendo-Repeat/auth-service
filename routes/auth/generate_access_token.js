@@ -16,6 +16,15 @@ route.get("/", async (req, res) => {
     var memberdb = await MEMBER.findOne({"oauth.cookies.refresh_token": refresh_token});
     if (!memberdb) return res.status(401).send({error: "invalid refresh_token"})
 
+    //decrypt access_token ans refresh_token
+    const {createDecipheriv} = require('crypto');
+    const decipher_access = createDecipheriv('aes256', config.eycryption_key, memberdb.oauth.e_iv);
+    const decipher_refresh = createDecipheriv('aes256', config.eycryption_key, memberdb.oauth.e_iv);
+
+    memberdb.oauth.access_token = decipher_access.update(memberdb.oauth.e_access_token, "hex", "utf-8") + decipher_access.final("utf-8")
+    memberdb.oauth.refresh_token = decipher_refresh.update(memberdb.oauth.e_refresh_token, "hex", "utf-8") + decipher_refresh.final("utf-8")
+    
+
     //check if user recived an api bann
     if (memberdb.oauth.blocking_state.is_blocked) return res.status(403).send({error: `You are being blocked from accessing our API. If you think that your API bann is unreasoned or unfair, contact a representative of Eat, Sleep, Nintendo, Repeat`})
 
@@ -25,7 +34,7 @@ route.get("/", async (req, res) => {
             client_id: config.discord_api.client_id,
             client_secret: config.discord_api.client_secret,
             grant_type: "refresh_token",
-            refresh_token: memberdb.oauth.refresh_token
+            refresh_token: refresh_token
         })
     
         const exchange_response = await axios.post("https://discord.com/api/oauth2/token",
@@ -38,13 +47,20 @@ route.get("/", async (req, res) => {
     
         if (!exchange_response || !exchange_response.data || !exchange_response.data.access_token) return;
 
-        
+        //encrypt discord tokens
+        const {createCipheriv, randomBytes} = require('crypto');
+        const iv = randomBytes(16);
+        const cipher_access = createCipheriv("aes256", config.eycryption_key, iv)
+        const cipher_refresh = createCipheriv("aes256", config.eycryption_key, iv)
+
         //save new tokens to database
         await MEMBER.findOneAndUpdate({id: memberdb.id}, {
-            "oauth.access_token": exchange_response.data.access_token,
-            "oauth.refresh_token": exchange_response.data.refresh_token,
+            "oauth.e_access_token": cipher_access.update(exchange_response.data.access_token, "utf-8", "hex") + cipher_access.final("hex"),
+            "oauth.e_refresh_token": cipher_refresh.update(exchange_response.data.refresh_token, "utf-8", "hex") + cipher_refresh.final("hex"),
+            "oauth.e_iv": iv,
         }, {new: true}).then(doc => {
-            memberdb = doc
+            memberdb.oauth.refresh_token = exchange_response.data.refresh_token
+            memberdb.oauth.access_token = exchange_response.data.access_token
         })
     }
 
