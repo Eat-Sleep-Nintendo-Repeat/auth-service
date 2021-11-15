@@ -1,6 +1,7 @@
 const express = require("express");
 const config = require("../../config.json");
 const MEMBER = require("../../models/MEMBER");
+var sanitize = require('mongo-sanitize');
 const url = require("url");
 const axios = require("axios")
 const jwt = require("jsonwebtoken")
@@ -13,7 +14,7 @@ route.get("/", async (req, res) => {
     var refresh_token = req.cookies.refresh_token
     if (!refresh_token) return res.status(401).send({error: "missing refresh_token"})
 
-    var memberdb = await MEMBER.findOne({"oauth.cookies.refresh_token": refresh_token});
+    var memberdb = await MEMBER.findOne({"oauth.cookies.refresh_token": sanitize(refresh_token)});
     if (!memberdb) return res.status(401).send({error: "invalid refresh_token"})
 
     //decrypt access_token ans refresh_token
@@ -54,7 +55,7 @@ route.get("/", async (req, res) => {
         const cipher_refresh = createCipheriv("aes256", config.eycryption_key, iv)
 
         //save new tokens to database
-        await MEMBER.findOneAndUpdate({id: memberdb.id}, {
+        await MEMBER.findOneAndUpdate({id: sanitize(memberdb.id)}, {
             "oauth.e_access_token": cipher_access.update(exchange_response.data.access_token, "utf-8", "hex") + cipher_access.final("hex"),
             "oauth.e_refresh_token": cipher_refresh.update(exchange_response.data.refresh_token, "utf-8", "hex") + cipher_refresh.final("hex"),
             "oauth.e_iv": iv,

@@ -3,6 +3,7 @@ const config = require("../../config.json");
 const url = require("url");
 const axios = require("axios");
 const MEMBER = require("../../models/MEMBER");
+var sanitize = require('mongo-sanitize');
 
 const route = express.Router();
 
@@ -12,7 +13,7 @@ route.post("/", async (req, res) => {
     var refresh_token = req.cookies.refresh_token
     if (!refresh_token) return res.status(401).send({error: "missing refresh_token"})
 
-    var memberdb = await MEMBER.findOne({"oauth.cookies.refresh_token": refresh_token});
+    var memberdb = await MEMBER.findOne({"oauth.cookies.refresh_token": sanitize(refresh_token)});
     if (!memberdb) return res.status(401).send({error: "invalid refresh_token"})
 
     //decrypt token
@@ -37,10 +38,10 @@ route.post("/", async (req, res) => {
                                         console.log(e)
                                     })
     
-    if (revoke_response.status != 200) return res.status(500).send("An Error has occoured while we tried to revoke your oauth data");
+    if (revoke_response.status != 200) return res.status(500).send({error: "Something went wrong while we tried to revoke your tokens"});
 
     //remove auth_data from database
-    await MEMBER.findOneAndUpdate({id: memberdb.id}, {
+    await MEMBER.findOneAndUpdate({id: sanitize(memberdb.id)}, {
         "oauth.access_token": null,
         "oauth.refresh_token": null,
         "oauth.scopes": [],
@@ -51,7 +52,7 @@ route.post("/", async (req, res) => {
     //remove refresh_token from client cookie storage
     res.cookie("refresh_token", "**revoked due to revocation request**", { expires: new Date()});
 
-    res.send({message: `All discord Oauth2 tokens that belonged to ${memberdb.informations.name} as well as every authentication tokens are revoked`})
+    res.send({message: `We revoked your tokens`})
 })
 
 module.exports = route;

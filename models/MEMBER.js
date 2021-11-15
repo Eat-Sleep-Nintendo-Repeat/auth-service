@@ -11,7 +11,6 @@ const MemberSchema = mongoose.Schema({
     e_iv: Buffer,
     expire_date: Date,
     scopes: Array,
-    redirect: String,
     cookies: Array,
     blocking_state: {
       is_blocked: { type: Boolean, default: false },
