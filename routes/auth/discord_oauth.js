@@ -12,7 +12,7 @@ const route = express.Router();
 
 route.get("/", async (req, res) => {
     if (!req.query.redirect || req.query.redirect.toLowerCase().startsWith("http") == false) req.query.redirect = "https://eat-sleep-nintendo-repeat.eu/"
-    if (req.query.redirect.split("//")[1].toLowerCase().startsWith("eat-sleep-nintendo-repeat.eu") == false) res.status(400).send({error: "You used an redirect that could be redirecting you to malicious site. an attacker may successfully launch a phishing scam and steal user credentials"})
+    if (req.query.redirect.split("//")[1].toLowerCase().startsWith("eat-sleep-nintendo-repeat.eu") == false) { res.status(400).send({error: "You used an redirect that could be redirecting you to malicious site. an attacker may successfully launch a phishing scam and steal user credentials"}); return;}
 
     //generate authentication state token
     let state_token = nanoid.nanoid(64)

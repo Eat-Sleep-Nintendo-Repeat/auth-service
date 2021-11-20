@@ -99,7 +99,7 @@ route.get("/", async (req, res) => {
         //something went wrong while fetching user data
         if (error.response) {
         //Discord respondet with an errorcode that is not in range of 2xx
-        if (error.response.status == 401 && retry == false){ 
+        if (error.response.status == 401 && retry == false){
             await refresh_discord_access_token()
             fetchuserdatafromdiscord(true)
         }
