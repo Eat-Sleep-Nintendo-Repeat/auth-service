@@ -6,7 +6,8 @@ const STATE_AUTH_CODE = require("../../models/STATE_AUTH_CODE")
 const MEMBER = require("../../models/MEMBER")
 var sanitize = require('mongo-sanitize');
 const url = require("url");
-const e = require("express");
+const qs = require("qs")
+
 
 const route = express.Router();
 
@@ -15,15 +16,30 @@ route.get("/", async (req, res) => {
     if (req.query.redirect.split("//")[1].toLowerCase().startsWith("eat-sleep-nintendo-repeat.eu") == false) { res.status(400).send({error: "You used an redirect that could be redirecting you to malicious site. an attacker may successfully launch a phishing scam and steal user credentials"}); return;}
 
     //generate authentication state token
-    let state_token = nanoid.nanoid(64)
-    let statedb = {code: state_token, method: "discord", "client_data.ip": req.headers['x-forwarded-for'] || req.ip || null, redirect: req.query.redirect}
+    let statedb = {code: nanoid.nanoid(10), verifier: nanoid.nanoid(64), method: "discord", "client_data.ip": req.headers['x-forwarded-for'] || req.ip || null, redirect: req.query.redirect}
     console.log("An AUTH started >", req.headers['x-forwarded-for'] || req.ip || null);
 
     //save state to database
     await new STATE_AUTH_CODE(statedb).save()
 
+    //encrypt code_verifyer
+    const crypto = require('crypto');
+    const code_challenge  = crypto.createHash('sha256').update(statedb.verifier).digest();
+
+    //querystring
+    let querystring = {
+        client_id: config.discord_api.client_id,
+        redirect_uri: `${config.devmode ? "http://192.168.178.31:5670" : "https://eat-sleep-nintendo-repeat.eu"}/api/auth/discord/callback`,
+        response_type: "code",
+        scope: "identify email",
+        promt: "none",
+        state: statedb.code,
+        code_challenge: code_challenge.toString('base64').replace(/\+/g, '-').replace(/\//g, '_').replace(/=/g, ''),
+        code_challenge_method: "S256",
+    }
+
     //generate url
-    res.redirect(`https://discord.com/api/oauth2/authorize?response_type=code&state=${state_token}&client_id=${config.discord_api.client_id}&scope=${"identify email"}&prompt=none&redirect_uri=${`${config.devmode ? "http://192.168.178.31:5670" : "https://eat-sleep-nintendo-repeat.eu"}/api/auth/discord/callback`}`)
+    res.redirect(`https://discord.com/api/oauth2/authorize?${qs.stringify(querystring)}`)
 })
 
 route.get("/callback", async (req, res) => {
@@ -60,6 +76,7 @@ route.get("/callback", async (req, res) => {
         client_secret: config.discord_api.client_secret,
         grant_type: "authorization_code",
         code: req.query.code,
+        code_verifier: statedb.verifier,
         redirect_uri: `${config.devmode ? "http://192.168.178.31:5670" : "https://eat-sleep-nintendo-repeat.eu"}/api/auth/discord/callback`
     })
 
@@ -68,7 +85,7 @@ route.get("/callback", async (req, res) => {
                                     {headers: {
                                         'Content-Type': 'application/x-www-form-urlencoded'
                                     }}).catch(async e => {
-                                        console.log(e.message)
+                                        console.log(e)
                                         res.status(500).send("An error has occurred while we tried to exchage your token");
                                         return await STATE_AUTH_CODE.findOneAndUpdate({code: state_token}, {status: {name: "token_exchange_failed", details: e.message, date: new Date()}})
                                     })

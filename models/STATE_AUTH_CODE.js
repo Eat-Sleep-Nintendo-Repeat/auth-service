@@ -2,6 +2,7 @@ const mongoose = require("mongoose");
 
 const Schema = mongoose.Schema({
   code: {type: String, required: true},
+  verifier: {type: String, required: true},
 
   method: {type: String, required: true},
   status: {
