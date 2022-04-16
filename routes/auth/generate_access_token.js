@@ -73,7 +73,7 @@ route.get("/", async (req, res) => {
     await axios.get("https://discord.com/api/oauth2/@me", {headers: {"Authorization": `Bearer ${memberdb.oauth.access_token}`}}).then(async response => {
         //save data to database
         await MEMBER.findOneAndUpdate({id: response.data.user.id}, {
-            informations: { name: response.data.user.username, discriminator: response.data.user.discriminator, avatar: response.data.user.avatar },
+            informations: { name: response.data.user.username, discriminator: response.data.user.discriminator, avatar: `https://cdn.discordapp.com/avatars/${response.data.user.id}/${response.data.user.avatar}.png?size=300` },
             "oauth.scopes": response.data.scopes,
             "oauth.expire_date": new Date(response.data.expires),
         })
