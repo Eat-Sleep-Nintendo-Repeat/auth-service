@@ -2,12 +2,12 @@ const express = require("express");
 const config = require("../../config.json")
 const nanoid = require("nanoid")
 const axios = require("axios")
-const STATE_AUTH_CODE = require("../../models/STATE_AUTH_CODE")
 const MEMBER = require("../../models/MEMBER")
 var sanitize = require('mongo-sanitize');
 const url = require("url");
 const qs = require("qs")
 
+var statelocaldb = []
 
 const route = express.Router();
 
@@ -19,8 +19,8 @@ route.get("/", async (req, res) => {
     let statedb = {code: nanoid.nanoid(10), verifier: nanoid.nanoid(64), method: "discord", "client_data.ip": req.headers['x-forwarded-for'] || req.ip || null, redirect: req.query.redirect}
     console.log("An AUTH started >", req.headers['x-forwarded-for'] || req.ip || null);
 
-    //save state to database
-    await new STATE_AUTH_CODE(statedb).save()
+    //save state to local string
+    statelocaldb.push(statedb)
 
     //encrypt code_verifyer
     const crypto = require('crypto');
@@ -49,13 +49,14 @@ route.get("/callback", async (req, res) => {
     let reqip = req.headers['x-forwarded-for'] || req.ip || null
     if (!state_token) return res.status(400).send("No state_authentication_token found")
 
-    let statedb = await STATE_AUTH_CODE.findOne({code: sanitize(state_token)})
+    let statedb = statelocaldb.find(x => x.code == state_token)
     if (!statedb || statedb.method != "discord" || statedb.status.name != "started") return res.status(400).send("The state_authentication_token is invalid")
 
     if (statedb.client_data.ip && reqip) {
         if (reqip != statedb.client_data.ip) {
             res.status(400).send("The IP that was recordet while your state_authentication_token was generated does not match the ip you are using now")
-            return await STATE_AUTH_CODE.findOneAndUpdate({code: sanitize(state_token)}, {status: {name: "blocked", details: `The Auth was blocked due to different ip addresses (${reqip != statedb.client_data.ip})`, date: new Date()}})
+            //remove state from local db
+            return statelocaldb = statelocaldb.filter(x => x.code != state_token)
         }
     }
 
@@ -64,7 +65,7 @@ route.get("/callback", async (req, res) => {
     //#region check for discord errors
     if (req.query.error) {
         res.status(400).send("Discord Error")
-        return await STATE_AUTH_CODE.findOneAndUpdate({code: sanitize(state_token)}, {status: {name: "redirect_failed", details: `Discord Error Title: ${req.query.error}\nDiscord Error Description: ${req.query.error_description}`, date: new Date()}})
+        return statelocaldb = statelocaldb.filter(x => x.code != state_token)
     }
     //#endregion
 
@@ -87,7 +88,7 @@ route.get("/callback", async (req, res) => {
                                     }}).catch(async e => {
                                         console.log(e)
                                         res.status(500).send("An error has occurred while we tried to exchage your token");
-                                        return await STATE_AUTH_CODE.findOneAndUpdate({code: state_token}, {status: {name: "token_exchange_failed", details: e.message, date: new Date()}})
+                                        return statelocaldb = statelocaldb.filter(x => x.code != state_token)
                                     })
 
     if (!exchange_response || !exchange_response.data || !exchange_response.data.access_token) return;
@@ -101,8 +102,8 @@ route.get("/callback", async (req, res) => {
         //check database
         var memberdb = await MEMBER.findOne({id: sanitize(user_data_response.user.id)})
         if (!memberdb) {
-            res.redirect("https://discord.com/invite/XkgEwRgn5K")
-            return await STATE_AUTH_CODE.findOneAndUpdate({code: sanitize(state_token)}, {status: {name: "blocked", details: `(${user_data_response.user.username}#${user_data_response.user.discriminator}) was not registered in database`, date: new Date()}})
+            res.send("You are not registered on this server")
+            return statelocaldb = statelocaldb.filter(x => x.code != state_token)
         }
 
         //generate refresh_token and add to database storage
@@ -135,15 +136,14 @@ route.get("/callback", async (req, res) => {
         res.cookie("refresh_token", refresh_token, { expires: cookieexpire});
 
         //update state
-        return await STATE_AUTH_CODE.findOneAndUpdate({code: sanitize(state_token)}, {"client_data.user_auth": user_data_response.user, status: {name: "success", details: `(${user_data_response.user.username}#${user_data_response.user.discriminator})'s authentication has been successfully completed`, date: new Date()}}, {new: true}).then(doc => {
-            res.redirect(doc.redirect)
-        })
+        statelocaldb = statelocaldb.filter(x => x.code != state_token)
+        res.redirect(doc.redirect)
 
 
 
     }).catch(async e => {
         res.status(400).send("Something went wrong while we tried to validate your auth tokens");
-        return await STATE_AUTH_CODE.findOneAndUpdate({code: sanitize(state_token)}, {status: {name: "token_validation_failed", details: e.message, date: new Date()}})
+        returnstatelocaldb = statelocaldb.filter(x => x.code != state_token)
     })
 
     //#endregion
