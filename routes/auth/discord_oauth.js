@@ -16,7 +16,7 @@ route.get("/", async (req, res) => {
     if (req.query.redirect.split("//")[1].toLowerCase().startsWith("eat-sleep-nintendo-repeat.eu") == false) { res.status(400).send({error: "You used an redirect that could be redirecting you to malicious site. an attacker may successfully launch a phishing scam and steal user credentials"}); return;}
 
     //generate authentication state token
-    let statedb = {code: nanoid.nanoid(10), verifier: nanoid.nanoid(64), method: "discord", "client_data.ip": req.headers['x-forwarded-for'] || req.ip || null, redirect: req.query.redirect}
+    let statedb = {code: nanoid.nanoid(10), verifier: nanoid.nanoid(64), method: "discord", "ip": req.headers['x-forwarded-for'] || req.ip || null, redirect: req.query.redirect}
     console.log("An AUTH started >", req.headers['x-forwarded-for'] || req.ip || null);
 
     //save state to local string
@@ -50,10 +50,10 @@ route.get("/callback", async (req, res) => {
     if (!state_token) return res.status(400).send("No state_authentication_token found")
 
     let statedb = statelocaldb.find(x => x.code == state_token)
-    if (!statedb || statedb.method != "discord" || statedb.status.name != "started") return res.status(400).send("The state_authentication_token is invalid")
+    if (!statedb || statedb.method != "discord") return res.status(400).send("The state_authentication_token is invalid")
 
-    if (statedb.client_data.ip && reqip) {
-        if (reqip != statedb.client_data.ip) {
+    if (statedb.ip && reqip) {
+        if (reqip != statedb.ip) {
             res.status(400).send("The IP that was recordet while your state_authentication_token was generated does not match the ip you are using now")
             //remove state from local db
             return statelocaldb = statelocaldb.filter(x => x.code != state_token)
@@ -137,14 +137,15 @@ route.get("/callback", async (req, res) => {
 
         //update state
         statelocaldb = statelocaldb.filter(x => x.code != state_token)
-        res.redirect(doc.redirect)
+        res.redirect(statedb.redirect)
 
 
 
     }).catch(async e => {
         res.status(400).send("Something went wrong while we tried to validate your auth tokens");
         returnstatelocaldb = statelocaldb.filter(x => x.code != state_token)
-    })
+        console.log(e)        
+})
 
     //#endregion
 
